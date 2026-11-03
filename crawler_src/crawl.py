@@ -32,12 +32,12 @@ def read_site_list(site_files):
 # functions to know which websites is crawled already
 def get_crawled_site_file(output_dir):
     crawled_site_file = output_dir / "crawled_sites.txt"
-    return crawled_sites_file
+    return crawled_site_file
     
 def load_crawled_domains(output_dir):
     crawled_sites_file = get_crawled_site_file(output_dir)
     
-    if not crawled_sites_files.exists():
+    if not crawled_sites_file.exists():
         return set()
     
     with open(crawled_sites_file, encoding="utf-8") as file:
@@ -45,13 +45,13 @@ def load_crawled_domains(output_dir):
             domain = line.strip() # remove the newline and any spaces
             if domain == "": # skip empty lines
                 continue
-            crawled_domains.add(domain)
+            crawled_domains.add(domain)                 # TODO: should we define crawled_domains?
 
     return crawled_domains
 
 def mark_domain_as_crawled(output_dir, domain):
     with open(get_crawled_site_file(output_dir), "a", encoding = "utf-8") as crawled_sites_file:
-        crawles_sites_file.write(domain + "\n")
+        crawled_sites_file.write(domain + "\n")
 
 # Reads the json file from Disconnect, returns a set of blocked domains
 def load_blocked(disconnect_jscon):
