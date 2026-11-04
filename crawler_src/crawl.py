@@ -119,8 +119,6 @@ def take_screenshot(page):
 def scroll_to_bottom(page):
     for step in range(7):
         page.evaluate(f"window.scrollTo({step}*document.body.scrollHeight/7, {step+1}*document.body.scrollHeight/7);")
-    #wait 5 seconds
-    page.wait_for_timeout(5000)
 
 # creates the context from which the recordings will be mmade (screen and har recordings)
 def create_browser_context(browser, har_path):
@@ -147,9 +145,12 @@ def main():
         
         if mode != "ignore":
             accept_cookies()
+            page.wait_for_timeout(5000)
             take_screenshot(page)
         
         scroll_to_bottom(page)
+        #wait 5 seconds
+        page.wait_for_timeout(5000)
         
         browser.close()
     
