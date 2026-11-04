@@ -2,22 +2,31 @@ import csv
 from playwright.sync_api import sync_playwright
 import argparse
 from tld import get_fld
+from pathlib import Path
+import json
 
 CRAWL_MODES = ["desktop", "mobile", "block", "ignore"]
 
-# Reads the flags -m and -l from the command line
+OUTPUT_FOLDERS = {
+    "desktop": Path("crawl_data_desktop"),
+    "mobile": Path("crawl_data_mobile"),
+    "block": Path("crawl_data_block"),
+    "ignore": Path("crawl_data_ignore")
+}
+
+# Step 1: Reads the flags -m and -l from the command line
 def arg_parser():
     parser = argparse.ArgumentParser()              # Initiates a parser
     
     # Adds the 2 possible arguments found in the command line
-    parser.add_argument("-m", "mode")
-    parser.add_argument("-l", "list")
+    parser.add_argument("-m", "--mode", required=True, choices=CRAWL_MODES)
+    parser.add_argument("-l", "--list", required=True)
 
     args = parser.parse_args()                      # The arguments from the command line
     
-    return args
+    return args                                     # Returns Namespace(mode='desktop/mobile/block/ignore', list='sites.csv')
 
-# Reads the csv-file, returning a list of tuples
+# Step 2: Reads the sites csv-file, returning a list of tuples
 def read_site_list(site_files):
     sites = []
     
@@ -27,97 +36,124 @@ def read_site_list(site_files):
                 continue
             domain = row[0].strip()
             country = row[1].strip()
-            sites.append((domain, country))         # Appends a tuple (domain, country) to the list sites
+            sites.append((domain, country))         # Appends a tuple (domainain, country) to the list sites
+    
+    return sites
 
-# functions to know which websites is crawled already
+# Gets the file with the crawled sites
 def get_crawled_site_file(output_dir):
     crawled_site_file = output_dir / "crawled_sites.txt"
     return crawled_site_file
-    
-def load_crawled_domains(output_dir):
+
+# Loads all already crawled domain
+def load_crawled_domain(output_dir):
     crawled_sites_file = get_crawled_site_file(output_dir)
     
     if not crawled_sites_file.exists():
         return set()
     
+    crawled_domain = set()
     with open(crawled_sites_file, encoding="utf-8") as file:
         for line in file:
-            domain = line.strip() # remove the newline and any spaces
-            if domain == "": # skip empty lines
+            domainain = line.strip() # remove the newline and any spaces
+            if domainain == "": # skip empty lines
                 continue
-            crawled_domains.add(domain)                 # TODO: should we define crawled_domains?
+            crawled_domain.add(domainain)
 
-    return crawled_domains
+    return crawled_domain
 
-def mark_domain_as_crawled(output_dir, domain):
+# Appends a domainain that is now crawled to the file with crawled sites
+def mark_domainain_as_crawled(output_dir, domainain):
     with open(get_crawled_site_file(output_dir), "a", encoding = "utf-8") as crawled_sites_file:
-        crawled_sites_file.write(domain + "\n")
+        crawled_sites_file.write(domainain + "\n")
 
-# Reads the json file from Disconnect, returns a set of blocked domains
-def load_blocked(disconnect_jscon):
-    return
+# Helper function to get the domain
+def get_company_domain(info):
+    domainain_set = set()                                                                          # Set of domain that belong to the company
 
-# Ignores blocked requests
-def request_blocker(blocked_domains):
-    return
+    for value in info.values():
+        if isinstance(value, list):                                                             # Gets the value that is a list of domain
+            for domain in value:
+                domainain_set.add(domain.lower())                                                     # Adds each domainain in the list to the set of domain
+    
+    return domainain_set
 
+# Returns the set of blocked domain from disconnect/services.json
+def load_blocked_domain():
+    disconnect_path = Path(__file__).parent / "disconnect" / "services.json"                    # Gets the parent folder file path and builds a path to the services.json file
+
+    BLOCKED_CATEGORIES = ["Advertising", "Analytics", "Social", 
+                          "FingerprintingInvasive", "FingerprintingGeneral"]                    # All the blocked categories from the task
+    
+    with open(disconnect_path) as file:
+        services = json.load(file)
+    
+        blocked_domains = set()                                                                    # Uses a set so we do not get any duplicate domain
+
+        for category in BLOCKED_CATEGORIES:                                                     # Iterates through all the blocked categories
+            for entry in services["categories"][category]:
+                for info in entry.values():
+                    current_blocked = get_company_domain(info)
+                    blocked_domains.update(current_blocked)
+
+
+    return blocked_domains
+
+# Helper function to visit_site() and creates context that records a HAR and a video
 def create_browser_context(p, browser, mode, har_path, video):
-    return
+    context_options = {
+        "record_har_path": har_path,                                                            # This is the path where we save the HAR file
+        "record_video_dir": video                                                               # This is the path where we save the video
+    }
 
-def accept_cookies():
-    return
+    if mode == "mobile":                                                                        # If the mode is mobile, we update the mobile type
+        context_options.update(p.devices["Pixel 10"])
+    
+    return browser.new_context(**context_options)                                               # **context_options unpacks the dictionary into keyword arguments
 
-def load_blocked_domains():
-    #should return the list of blocked domains from disconnect/services.json
-    return
+# Visits one website and saves its HAR and video
+def visit_site(p, browser, domain, mode, output_dir, blocked_domain):
+    har_path = output_dir / f"{domain}.har"                                                        # Gets the path to the HAR file
+    pre_consent_path = output_dir / f"{domain}_pre_consent.png"
 
+    context = create_browser_context(p, browser, mode, har_path, output_dir)                    # Creates a fresh context for this site visit
+    page = context.new_page()                                                                   # Opens a new tab
 
-# get all entries that were not blocked (status != 0)
-def get_valid_entries(har):
-    valid = []
-    for entry in har['log']['entries']:
-        if entry['response']['status'] == 0:
-            continue
-        if entry['response'].get('redirectURL', '').startswith('chrome-extension://'):
-            continue
-        valid.append(entry)
-    return valid
+    page.goto(f"https://{domain}")                                                                 # Loads the current site
+    page.wait_for_timeout(10_000)                                                               # Waits 10 seconds
 
-# get number of requests per website
-def get_number_of_requests(valid):
-    return len(valid)
+    take_screenshot(page, pre_consent_path)
+    context.close()                                                                             # Closes this session, writes to the HAR file and finishes the video
 
-# given page_url and request_url check if third party access
-def is_third_party(page_url, request_url):
-    return get_fld(page_url) != get_fld(request_url)
-
-def get_number_of_third_party_requests(valid, page_url):
-    count = 0
-    for entry in valid:
-        if is_third_party(page_url, entry['request']['url']):
-            count +=1
-    return count
-
-# get length of list with all third pary hostnames
-def numberOfDistinctThirdPartyDomains (valid, page_url):
-    tp_domains = set()
-    for entry in valid:
-        req_url = entry ['request']['url']
-        if is_third_party(page_url, req_url):
-            tp_domains.add(get_fld(req_url))
-    return len(tp_domains)
-
-def take_screenshot(url):
-    with sync_playwright() as p:
-        browser = p.webkit.launch()
-        page = browser.new_page()
-        page.goto(url)
-        page.screenshot
-    return
-
+def take_screenshot(page, path):
+    page.screenshot(path=path)
 
 def main():
-    return
+    args = arg_parser()                                 # Step 1: Parse the arguments on the command line
+    mode = args.mode
+    site_file = args.list
+    sites = read_site_list(site_file)                   # Step 2: Reads the sites csv file
+    
+    output_dir = OUTPUT_FOLDERS[mode]                   # Step 3: Picks the output folder of the current mode
+
+    crawled_domain = load_crawled_domain(output_dir)  # Step 4: Keeps track of which sites are already crawled
+
+    if mode == "block":                                 # Step 5: Gets the blocked domain from Disconnect's services.json
+        blocked_domain = load_blocked_domain()
+    else:                                               # If not in the block mode, we do not have any blocked domain
+        blocked_domain = None
+
+    with sync_playwright() as p:                        # Step 6: Start Playwright and Chromium
+        browser = p.chromium.launch()
+
+        for domain, country in sites:
+            if domain in crawled_domain:                # Skips domain we already have crawled
+                continue
+
+            visit_site(p, browser, domain, mode, output_dir, blocked_domain)
+            mark_domainain_as_crawled(output_dir, domain)
+        
+        browser.close()
 
 if __name__ == "__main__":
     main()
