@@ -113,8 +113,15 @@ def take_screenshot(url):
         page = browser.new_page()
         page.goto(url)
         page.screenshot
-    return
 
+# scrolls to the bottom of the page as a bot detection mitigation measure
+def scroll_to_bottom(url):
+    with sync_playwright() as p:
+        browser = p.webkit.launch()
+        page = browser.new_page()
+        page.goto(url)
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight);")
+        browser.close()
 
 def main():
     return
