@@ -4,6 +4,10 @@ import argparse
 from tld import get_fld
 
 CRAWL_MODES = ["desktop", "mobile", "block", "ignore"]
+SCREENSHOT_PATH = ""
+SCREEN_RECORDING_PATH = ""
+HAR_PATH = ""
+URL = ""
 
 # Reads the flags -m and -l from the command line
 def arg_parser():
@@ -107,17 +111,49 @@ def numberOfDistinctThirdPartyDomains (valid, page_url):
             tp_domains.add(get_fld(req_url))
     return len(tp_domains)
 
-def take_screenshot(url):
-    with sync_playwright() as p:
-        browser = p.webkit.launch()
-        page = browser.new_page()
-        page.goto(url)
-        page.screenshot
-    return
+# takes a screenshot of the page
+def take_screenshot(page):
+    page.screenshot(path=f"{SCREENSHOT_PATH}/screenshot.png")
 
+# scrolls to the bottom of the page in steps as a bot detection mitigation measure
+def scroll_to_bottom(page):
+    for step in range(7):
+        page.evaluate(f"window.scrollTo({step}*document.body.scrollHeight/7, {step+1}*document.body.scrollHeight/7);")
+
+# creates the context from which the recordings will be mmade (screen and har recordings)
+def create_browser_context(browser, har_path):
+    context = browser.new_context(record_vid_dir=SCREEN_RECORDING_PATH,
+                                  record_har_path=har_path)
+    return context
+    
+    
+# ends the screen recording, call at the end
+def stop_screen_recording(context):
+    context.close()
 
 def main():
-    return
+    
+    mode = CRAWL_MODES[0]
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.goto(URL)
+        #wait 10 seconds
+        page.wait_for_timeout(10000)
+        # body of the crawler, here we call the crawler functions
+        take_screenshot(page)
+        
+        if mode != "ignore":
+            accept_cookies()
+            page.wait_for_timeout(5000)
+            take_screenshot(page)
+        
+        scroll_to_bottom(page)
+        #wait 5 seconds
+        page.wait_for_timeout(5000)
+        
+        browser.close()
+    
 
 if __name__ == "__main__":
     main()
