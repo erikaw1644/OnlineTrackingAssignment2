@@ -67,6 +67,10 @@ def mark_domain_as_crawled(output_dir, domain):
         crawled_sites_file.write(domain + "\n")
 
 
+# Saves the URL the page ended up at (after redirects), needed for third-party checks in the analysis
+def save_final_url(output_dir, domain, final_url):
+    with open(output_dir / "final_urls.csv", "a", encoding="utf-8") as final_urls_file:
+        final_urls_file.write(f"{domain},{final_url}\n")
 
 
 # Creates a fresh browser context that records a HAR file and a video
@@ -95,6 +99,7 @@ def visit_site(p, browser, domain, mode, output_dir, blocked_domains):
     page = context.new_page()
     try:
         load_homepage(page, domain)
+        save_final_url(output_dir, domain, page.url) # save the final URL after redirects
         page.wait_for_timeout(WAIT_AFTER_PAGE_LOAD_MS)
         take_screenshot(page, output_dir / f"{domain}_pre_consent.png")
 
