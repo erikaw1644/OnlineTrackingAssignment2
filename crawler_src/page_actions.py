@@ -13,6 +13,9 @@ DUTCH_ACCEPT_KEYWORDS = [
 # Elements priv-accept clicks: buttons, links and spans
 CLICKABLE_ELEMENTS = "button, a, span"
 
+SCROLL_STEPS = 7 # number of scroll steps to reach the bottom of the page
+PAUSE_BETWEEN_SCROLL_STEPS_MS = 500 # pause half a second between scrolls
+
 
 # Tries https://domain first, then https://www.domain if nothing loaded.
 def load_homepage(page, domain):
@@ -42,7 +45,7 @@ def page_has_loaded_something(page):
         return False
 
 
-# remove leading/trailing/repeated spaces and ignore upper/lower case
+# Normalizes text by removing extra whitespace and converting to lowercase
 def normalize_text(text):
     return " ".join(text.split()).lower()
 
@@ -59,7 +62,7 @@ def load_accept_keywords(priv_accept_words_path):
         accept_keywords.add(normalize_text(keyword))
     return accept_keywords
 
-
+# Loads the accept keywords at startup
 ACCEPT_KEYWORDS = load_accept_keywords(PRIV_ACCEPT_WORDS_PATH)
 
 # Clicks the first visible button/link/span whose whole text exactly matches a keyword,
@@ -86,9 +89,28 @@ def accept_cookies(page):
 
 
 # scrolls to the bottom of the page in steps as a bot detection mitigation measure
+# def scroll_to_bottom(page):
+#     for step in range(7):
+#         page.evaluate(f"window.scrollTo({step}*document.body.scrollHeight/7, {step+1}*document.body.scrollHeight/7);")
+
+# this version of scroll_to_bottom is better because it scrolls in steps with the mouse wheel, pausing between them, 
+# which is more like a real user scrolling. It should help avoid bot detection on some websites. So that we dont 
+# get blocked as I was at RU:(
+
+# Scrolls to the bottom of the page in steps with the mouse wheel, pausing between them
+# (bot detection mitigation: real wheel events, like a user scrolling)
 def scroll_to_bottom(page):
-    for step in range(7):
-        page.evaluate(f"window.scrollTo({step}*document.body.scrollHeight/7, {step+1}*document.body.scrollHeight/7);")
+    viewport_height = page.evaluate("window.innerHeight")
+    page.mouse.move(5, viewport_height / 2)          # put the mouse over the page, near the left edge
+
+    for _ in range(SCROLL_STEPS):
+        page_height = page.evaluate("document.documentElement.scrollHeight")
+        page.mouse.wheel(0, page_height / SCROLL_STEPS)   # scroll down 1/7 of the page
+        page.wait_for_timeout(PAUSE_BETWEEN_SCROLL_STEPS_MS)
+
+    # one extra scroll in case the page grew while scrolling (lazy-loaded content)
+    page.mouse.wheel(0, page.evaluate("document.documentElement.scrollHeight"))
+    page.wait_for_timeout(PAUSE_BETWEEN_SCROLL_STEPS_MS)
 
 # takes a screenshot of the page and saves it to the given path
 def take_screenshot(page, screenshot_path):

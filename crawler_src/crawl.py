@@ -9,8 +9,6 @@ from blocking import load_blocked, request_blocker
 WAIT_AFTER_PAGE_LOAD_MS = 10000
 WAIT_AFTER_CONSENT_MS = 5000
 WAIT_AFTER_SCROLL_MS = 5000
-MAX_SCROLL_STEPS = 40 # safety limit against infinite scrolling pages
-PAUSE_BETWEEN_SCROLL_STEPS_MS = 500 # pause half a second between scrolls
 
 DISCONNECT_SERVICES_PATH = Path(__file__).resolve().parent / "disconnect" / "services.json"
 
@@ -43,7 +41,7 @@ def read_site_list(site_files):
             sites.append((domain, country))         # Appends a tuple (domain, country) to the list sites
     return sites
 
-# functions to know which websites is crawled already
+# Resume feature: keeps track of which domains have already been crawled, so we can skip them on the next run
 def get_crawled_site_file(output_dir):
     crawled_sites_file = output_dir / "crawled_sites.txt"
     return crawled_sites_file
@@ -79,8 +77,7 @@ def create_browser_context(p, browser, mode, har_path, video_dir):
         "record_video_dir": str(video_dir),
     }
     if mode == "mobile":
-        pixel_10 = dict(p.devices["Pixel 10"]) # user agent, screen size, touch, ...
-        pixel_10.pop("default_browser_type") # new_context doesn't accept this key
+        pixel_10 = dict(p.devices["Pixel 10"]) 
         context_options.update(pixel_10)
     else:
         context_options["viewport"] = {"width": 1280, "height": 800}
