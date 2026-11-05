@@ -4,10 +4,12 @@ from pathlib import Path
 PRIV_ACCEPT_WORDS_PATH = Path(__file__).resolve().parent / "accept_words.txt"
 
 # Priv-accept's list has no Dutch keywords, we add them here
+# Also added some English keywords that were missing from priv-accept's list
 DUTCH_ACCEPT_KEYWORDS = [
     "accepteren", "alles accepteren", "alle cookies accepteren", "cookies accepteren", "accepteer",
     "accepteer alle cookies", "accepteer cookies", "akkoord", "ik ga akkoord", "alle cookies toestaan",
-    "alles toestaan", "toestaan", "ja, ik ga akkoord", "akkoord en doorgaan",
+    "alles toestaan", "toestaan", "ja, ik ga akkoord", "akkoord en doorgaan", "accepteer alles", 
+    "accept non-essential cookies", "accept recommended settings"
 ]
 
 # Elements priv-accept clicks: buttons, links and spans
