@@ -1,0 +1,13 @@
+,,Desktop,Mobile,Block,Ignore
+Number of requests,min,28.0,27.0,28.0,28.0
+Number of requests,median,109.5,100.0,71.5,63.5
+Number of requests,max,277.0,277.0,239.0,135.0
+Number of third-party requests,min,8.0,7.0,2.0,5.0
+Number of third-party requests,median,58.0,56.0,25.0,21.5
+Number of third-party requests,max,215.0,209.0,120.0,90.0
+Number of distinct third-party domains,min,2.0,1.0,1.0,1.0
+Number of distinct third-party domains,median,15.0,15.0,6.0,6.0
+Number of distinct third-party domains,max,36.0,36.0,13.0,15.0
+Number of distinct third-party entities,min,0.0,0.0,0.0,0.0
+Number of distinct third-party entities,median,4.5,4.5,2.0,2.0
+Number of distinct third-party entities,max,22.0,22.0,5.0,6.0
