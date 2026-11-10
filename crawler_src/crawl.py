@@ -7,7 +7,7 @@ CRAWL_MODES = ["desktop", "mobile", "block", "ignore"]
 SCREENSHOT_PATH = ""
 SCREEN_RECORDING_PATH = ""
 HAR_PATH = ""
-URL = ""
+URL = "http://uva.nl"
 
 # Reads the flags -m and -l from the command line
 def arg_parser():
@@ -103,7 +103,7 @@ def get_number_of_third_party_requests(valid, page_url):
     return count
 
 # get length of list with all third pary hostnames
-def numberOfDistinctThirdPartyDomains (valid, page_url):
+def number_of_distinct_third_party_domains(valid, page_url):
     tp_domains = set()
     for entry in valid:
         req_url = entry ['request']['url']
@@ -122,10 +122,9 @@ def scroll_to_bottom(page):
 
 # creates the context from which the recordings will be mmade (screen and har recordings)
 def create_browser_context(browser, har_path):
-    context = browser.new_context(record_vid_dir=SCREEN_RECORDING_PATH,
+    context = browser.new_context(record_video_dir=SCREEN_RECORDING_PATH,
                                   record_har_path=har_path)
     return context
-    
     
 # ends the screen recording, call at the end
 def stop_screen_recording(context):
@@ -136,6 +135,7 @@ def main():
     mode = CRAWL_MODES[0]
     with sync_playwright() as p:
         browser = p.chromium.launch()
+        context = create_browser_context(browser, HAR_PATH)
         page = browser.new_page()
         page.goto(URL)
         #wait 10 seconds
@@ -151,7 +151,7 @@ def main():
         scroll_to_bottom(page)
         #wait 5 seconds
         page.wait_for_timeout(5000)
-        
+        stop_screen_recording(context)
         browser.close()
     
 
