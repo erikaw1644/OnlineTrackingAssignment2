@@ -4,6 +4,7 @@ import argparse
 from tld import get_fld
 from pathlib import Path
 import json
+from urllib.parse import urlparse
 
 CRAWL_MODES = ["desktop", "mobile", "block", "ignore"]
 
@@ -13,6 +14,17 @@ OUTPUT_FOLDERS = {
     "block": Path("crawl_data_block"),
     "ignore": Path("crawl_data_ignore")
 }
+
+# TODO: Check assignment description for this list
+ACCEPT_KEYWORDS = ["accept all", "accept cookies", "allow all", "allow cookies", "i agree", "agree",
+                   "accept", "got it", "alles accepteren", "alle cookies accepteren",
+                   "accepteer alle", "accepteren", "accepteer", "akkoord", "ik ga akkoord",
+                   "toestaan"]
+
+REJECT_KEYWORDS = ["reject", "decline", "refuse", "deny", "disagree", "necessary", "essential", "only",
+                   "settings", "manage", "preferences", "customise", "customize",
+                   "weiger", "afwijzen", "alleen", "noodzakelijk", "instellingen", "voorkeuren", "beheren"]
+
 
 # Step 1: Reads the flags -m and -l from the command line
 def arg_parser():
@@ -113,17 +125,91 @@ def create_browser_context(p, browser, mode, har_path, video):
 
 # Visits one website and saves its HAR and video
 def visit_site(p, browser, domain, mode, output_dir, blocked_domain):
-    har_path = output_dir / f"{domain}.har"                                                        # Gets the path to the HAR file
+    har_path = output_dir / f"{domain}.har"                                                     # Gets the path to the HAR file
     pre_consent_path = output_dir / f"{domain}_pre_consent.png"
+    post_consent_path = output_dir / f"{domain}_post_consent.png"
 
     context = create_browser_context(p, browser, mode, har_path, output_dir)                    # Creates a fresh context for this site visit
     page = context.new_page()                                                                   # Opens a new tab
 
-    page.goto(f"https://{domain}")                                                                 # Loads the current site
+    if mode == "block":
+        context.route("**/*", block_request)
+    page = context.new_page()
+
+    page.goto(f"https://{domain}")                                                          # Loads the current site
     page.wait_for_timeout(10_000)                                                               # Waits 10 seconds
 
     take_screenshot(page, pre_consent_path)
+
+    if mode != "ignore":
+        accept_cookies(page)
+        page.wait_for_timeout(5_000)
+        take_screenshot(page, post_consent_path)
+
+    
+    scroll_to_bottom(page)
+    page.wait_for_timeout(5_000)
+
+    video_path = page.video.path()
     context.close()                                                                             # Closes this session, writes to the HAR file and finishes the video
+    Path(video_path).rename(output_dir / f"{domain}.webm")
+
+# Automatically scrolls down the page like a visitor on the site
+def scroll_to_bottom(page, max_steps=40):
+    for step in range(max_steps):                                                               # Max steps so that the scroll ends at a certain point for pages with no bottom
+        page.evaluate("window.scrollBy(0, 600)")
+        page.wait_for_timeout(500)
+
+        # Evaluates to true if we have reached the bottom of the page
+        scrolled_to_bottom = page.evaluate(
+            "window.scrollY + window.innerHeight >= document.documentElement.scrollHeight"
+        )
+
+        if scrolled_to_bottom:
+            break
+
+def is_accept_button_text(text):
+    text = " ".join(text.lower().split())
+    if len(text) > 40:
+        return False
+    if any(word in text for word in REJECT_KEYWORDS):
+        return False
+    return any(word in text for word in ACCEPT_KEYWORDS)
+
+def accept_cookies(page):
+    for fram in page.frames:
+        candidates = fram.locator("button, a, [role='button']")
+        for index in range(candidates.count()):
+            candidate = candidates.nth(index)
+            try:
+                if not candidate.is_visible():
+                    continue
+                if not is_accept_button_text(candidate.inner_text(timeout=1000)):
+                    continue
+                candidate.click(timeout=3000)
+                return True
+            except Exception:
+                continue
+    return False
+
+def is_blocked_hostname(hostname, blocked_domains):
+    labels = hostname.lower().split(".")
+    
+    for start in range(len(labels) - 1):
+        if ".".join(labels[start:]) in blocked_domains:
+            return True
+    
+    return False
+
+def block_request(route, blocked_domains):
+    hostname = urlparse(route.request.url).hostname
+
+    blocked_domains = load_blocked_domain()
+
+    if hostname and is_blocked_hostname(hostname, blocked_domains):
+        route.abort()
+    else:
+        route.continue_()
 
 def take_screenshot(page, path):
     page.screenshot(path=path)
